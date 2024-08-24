@@ -19,6 +19,7 @@
 #echo 'src-git my https://github.com/xiaorouji/openwrt-passwall-packages' >>feeds.conf.default
 echo 'src-git kenzo https://github.com/kenzok8/openwrt-packages.git' >>feeds.conf.default
 echo 'src-git small https://github.com/kenzok8/small' >>feeds.conf.default
+echo 'src-git poweroffdevice https://github.com/sirpdboy/luci-app-poweroffdevice' >>feeds.conf.default
 ./scripts/feeds update -a && rm -rf feeds/luci/applications/luci-app-mosdns
 rm -rf feeds/packages/net/{alist,adguardhome,mosdns,xray*,v2ray*,v2ray*,sing*,smartdns}
 rm -rf feeds/packages/utils/v2dat
