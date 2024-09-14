@@ -27,8 +27,6 @@ env:
   UPLOAD_FIRMWARE: true
   UPLOAD_RELEASE: true
   TZ: Asia/Shanghai
-  FILE_NAME: ROOTFS
-  PRODUCT_NAME: ROOTFS
   
 jobs:
   build:
