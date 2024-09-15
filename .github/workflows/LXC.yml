@@ -91,22 +91,15 @@ jobs:
       with:
         path: ${{ env.PACKAGED_OUTPUTPATH }}/
 
-    - name: Upload OpenWrt Firmware to Release
-      id: release
-      uses: ncipollo/release-action@v1
-      if: env.PACKAGED_STATUS == 'success' && env.UPLOAD_RELEASE == 'true' && !cancelled()
+    - name: Upload firmware to release
+      uses: softprops/action-gh-release@master
+      if: steps.tag.outputs.status == 'success' && !cancelled()
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
-        name: R${{ env.DATE }} for ${{ env.FILE_NAME }}
-        allowUpdates: true
-        removeArtifacts: true
-        tag: ${{ env.FILE_NAME }}
-        commit: main
-        token: ${{ secrets.TOKEN3}}
-        artifacts: ${{ env.PACKAGED_OUTPUTPATH }}/*
-        body: |
-          - 默认IP：192.168.10.2 默认密码：password (WiFi密码同）
-          - 当前使用版本:【编译前的最后一次➦[主源码](https://github.com/coolsnowwolf/lede)更新记录】
-          ${{ env.useVersionInfo }}
+        tag_name: ${{ steps.tag.outputs.release_tag }}
+        body_path: release.txt
+        files: ${{ env.FIRMWARE }}/*
 
     - name: Delete workflow runs
       uses: Mattraks/delete-workflow-runs@v2
