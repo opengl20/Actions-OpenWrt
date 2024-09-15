@@ -10,7 +10,7 @@
 # See /LICENSE for more information.
 #
 
-name: aarch64-builder
+name: ROOTFS
 
 on:
   repository_dispatch:
@@ -27,6 +27,8 @@ env:
   UPLOAD_FIRMWARE: true
   UPLOAD_RELEASE: true
   TZ: Asia/Shanghai
+  FILE_NAME: ROOTFS
+  PRODUCT_NAME: ROOTFS
   
 jobs:
   build:
