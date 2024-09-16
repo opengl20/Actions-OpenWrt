@@ -5,7 +5,7 @@
 # Cron: min (0 - 59) / hour (0 - 23) / day of month (1 - 31) / month (1 - 12) / day of week (0 - 6)(Sunday - Saturday)
 #========================================================================================================================
 
-name: KWRT
+name: KLXC
 
 on:
   repository_dispatch:
@@ -25,8 +25,8 @@ env:
   UPLOAD_RELEASE: true
   RECENT_LASTEST: 30
   TZ: Asia/Shanghai
-  FILE_NAME: KWRT
-  PRODUCT_NAME: KWRT
+  FILE_NAME: KLXC
+  PRODUCT_NAME: KLXC
 
 jobs:
   build:
