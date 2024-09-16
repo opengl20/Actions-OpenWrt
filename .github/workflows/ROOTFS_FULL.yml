@@ -15,13 +15,13 @@ on:
   workflow_dispatch:
 
   schedule:
-   - cron: '0 15 * * 0'
+   - cron: '0 08 * * 0'
 
 env:
   REPO_URL: https://github.com/coolsnowwolf/lede
   REPO_BRANCH: master
   FEEDS_CONF: feeds.conf.default
-  CONFIG_FILE: ROOTFS.config
+  CONFIG_FILE: FULL.config
   DIY_P1_SH: diy-part1.sh
   DIY_P2_SH: diy-part2.sh
   UPLOAD_BIN_DIR: false
