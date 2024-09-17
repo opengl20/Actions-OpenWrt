@@ -67,7 +67,7 @@ jobs:
       if: (!cancelled())
       uses: ophub/flippy-openwrt-actions@main
       env:
-        OPENWRT_ARMVIRT: https://github.com/518512/My-ROOTFS/releases/download/OP2203_ARM_ROOTFS_mini/openwrt-22.03-armsr-armv8-generic-rootfs-202409140327.tar.gz
+        OPENWRT_ARMVIRT: https://github.com/opengl20/Actions-OpenWrt/releases/download/ROOTFS_FULL/openwrt-armvirt-64-generic-rootfs.tar.gz
         PACKAGE_SOC: qemu
         WHOAMI: Demons
         #KERNEL_REPO_URL: https://github.com/breakings/OpenWrt/tree/main/opt
