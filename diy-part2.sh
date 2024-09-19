@@ -16,6 +16,9 @@
 # poweroff
 git clone https://github.com/esirplayground/luci-app-poweroff package/luci-app-poweroff
 
+# Hello World
+git clone https://github.com/jerrykuku/luci-app-vssr package/luci-app-vssr
+
 # Modify default theme
 sed -i 's/luci-theme-bootstrap/luci-theme-argon/g' feeds/luci/collections/luci/Makefile
 
