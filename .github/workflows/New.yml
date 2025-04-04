@@ -15,8 +15,8 @@ on:
   # - cron: '0 04 * * 0'
 
 env:
-  REPO_URL: https://github.com/coolsnowwolf/lede
-  REPO_BRANCH: master
+  REPO_URL: https://github.com/Lienol/openwrt
+  REPO_BRANCH: 24.10
   FEEDS_CONF: feeds.conf.default
   CONFIG_FILE: .config
   DIY_P1_SH: diy-part1.sh
@@ -70,7 +70,7 @@ jobs:
         OPENWRT_ARMVIRT: https://dl.openwrt.ai/releases/24.10/targets/bcm27xx/bcm2711/kwrt-03.08.2025-bcm27xx-bcm2711-rpi-4-rootfs.tar.gz
         PACKAGE_SOC: qemu
         WHOAMI: Demons
-        OPENWRT_VER: R24.2.2
+        OPENWRT_VER: 24.10
         GZIP_IMGS: .gz
         GH_TOKEN: ${{ secrets.TOKEN3 }}
 
