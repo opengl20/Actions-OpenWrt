@@ -24,8 +24,8 @@ env:
   UPLOAD_RELEASE: true
   RECENT_LASTEST: 30
   TZ: Asia/Shanghai
-  FILE_NAME: P-LXC
-  PRODUCT_NAME: P-LXC
+  FILE_NAME: NEW
+  PRODUCT_NAME: NEW
 
 jobs:
   build:
