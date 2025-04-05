@@ -1,15 +1,20 @@
 #========================================================================================================================
-# https://github.com/ophub/amlogic-s9xxx-openwrt
-# Description: 使用 Releases 文件进行打包
-# Cron: 分钟 (0 - 59) / 小时 (0 - 23) / 每月日期 (1 - 31) / 月份 (1 - 12) / 星期几 (0 - 6)(星期日 - 星期六)
+# Amlogic S9xxx OpenWrt Build Workflow
+# Description: Build OpenWrt firmware for Raspberry Pi 4 using pre-built image
+# Features:
+# - Downloads pre-built OpenWrt image
+# - Extracts root filesystem and repackages it
+# - Uploads to GitHub Releases
+# Cron: 0 04 * * 0 (Runs every Sunday at 04:00 UTC)
 #========================================================================================================================
 
-name: old
+name: OpenWrt Build for Raspberry Pi 4
 
 on:
   repository_dispatch:
   workflow_dispatch:
   
+  # Uncomment for weekly builds
   # schedule:
   # - cron: '0 04 * * 0'
 
@@ -18,137 +23,176 @@ env:
   REPO_BRANCH: openwrt-24.10
   FEEDS_CONF: feeds.conf.default
   CONFIG_FILE: .config
-  DIY_P1_SH: diy-part1.sh
-  DIY_P2_SH: diy-part2.sh
   UPLOAD_FIRMWARE: false
   UPLOAD_RELEASE: true
   RECENT_LASTEST: 30
   TZ: Asia/Shanghai
-  FILE_NAME: old
-  PRODUCT_NAME: old
+  FIRMWARE_NAME: openwrt-rpi4
+  PRODUCT_NAME: OpenWrt-RPi4
   IMAGE_URL: https://dl.openwrt.ai/releases/24.10/targets/bcm27xx/bcm2711/kwrt-03.08.2025-bcm27xx-bcm2711-rpi-4-squashfs-sysupgrade.img.gz
+  DEFAULT_IP: 192.168.11.2
+  DEFAULT_PASSWORD: password
 
 jobs:
   build:
     runs-on: ubuntu-22.04
-    if: github.event.repository.owner.id == github.event.sender.id || ! github.event.sender.id
+    if: github.event.repository.owner.id == github.event.sender.id || !github.event.sender.id
 
     steps:
-    - name: 检出代码
-      uses: actions/checkout@v2
+    - name: Checkout repository
+      uses: actions/checkout@v3
 
-    - name: 初始化环境
+    - name: Set up build environment
       env:
         DEBIAN_FRONTEND: noninteractive
       run: |
-        docker rmi `docker images -q`
+        # Clean up Docker images and system packages
+        docker rmi $(docker images -q) || true
         sudo rm -rf /etc/apt/sources.list.d/* /usr/share/dotnet /usr/local/lib/android /opt/ghc
-        sudo -E apt-get -qq update
-        sudo -E apt-get -qq install $(curl -fsSL https://is.gd/depends_ubuntu_2204) qemu-utils
-        sudo -E apt-get -qq autoremove --purge
-        sudo -E apt-get -qq clean
+        
+        # Install required packages
+        sudo apt-get -qq update
+        sudo apt-get -qq install -y $(curl -fsSL https://is.gd/depends_ubuntu_2204) \
+          qemu-utils \
+          parted \
+          e2fsprogs \
+          dosfstools
+        
+        # Clean up
+        sudo apt-get -qq autoremove --purge
+        sudo apt-get -qq clean
+        
+        # Set timezone and prepare workspace
         sudo timedatectl set-timezone "$TZ"
         sudo mkdir -p -m 777 /workdir
         sudo chown $USER:$GROUPS /workdir
 
-    - name: 克隆源代码
+    - name: Clone OpenWrt source (for version info)
       working-directory: /workdir
       run: |
-        df -hT $PWD
-        git clone $REPO_URL -b $REPO_BRANCH openwrt
+        git clone --depth=1 $REPO_URL -b $REPO_BRANCH openwrt
         ln -sf /workdir/openwrt $GITHUB_WORKSPACE/openwrt
         cd openwrt
-        useVersionInfo=$(git show -s --date=short --format="Author: %an<br/>date: %cd<br/>commit: %s<br/>commit hash: %H")
+        useVersionInfo=$(git show -s --date=short --format="Author: %an<br/>Date: %cd<br/>Commit: %s<br/>Hash: %H")
         echo "useVersionInfo=$useVersionInfo" >> $GITHUB_ENV
-        echo "DATE=$(date "+%Y-%m-%d %H:%M:%S")" >> $GITHUB_ENV
-        echo "DATE1=$(date "+%Y-%m-%d")" >> $GITHUB_ENV
+        echo "BUILD_DATE=$(date '+%Y-%m-%d %H:%M:%S')" >> $GITHUB_ENV
+        echo "BUILD_DATE_SHORT=$(date '+%Y-%m-%d')" >> $GITHUB_ENV
 
-    - name: 下载并转换镜像文件
+    - name: Download and process firmware image
       working-directory: /workdir
       run: |
-        # 下载 .img.gz 文件
-        wget -O rpi-4-sysupgrade.img.gz "$IMAGE_URL"
-        # 验证文件是否存在
+        set -euo pipefail
+        
+        # Download the firmware image
+        echo "Downloading firmware image from $IMAGE_URL"
+        wget --show-progress -q -O rpi-4-sysupgrade.img.gz "$IMAGE_URL"
+        
+        # Verify download
         if [ ! -f rpi-4-sysupgrade.img.gz ]; then
-          echo "Error: Failed to download rpi-4-sysupgrade.img.gz"
+          echo "::error::Failed to download firmware image"
           exit 1
         fi
-        # 解压 .img.gz 到 .img，忽略 trailing garbage 警告
-        gzip -d rpi-4-sysupgrade.img.gz || true
-        # 检查解压结果
+        
+        # Extract the image
+        echo "Extracting firmware image..."
+        if ! gzip -dk rpi-4-sysupgrade.img.gz; then
+          echo "::error::Failed to extract firmware image"
+          exit 1
+        fi
+        
+        # Verify extraction
         if [ ! -f rpi-4-sysupgrade.img ]; then
-          echo "Error: Decompression failed or rpi-4-sysupgrade.img not found"
+          echo "::error::Extracted image not found"
           exit 1
         fi
-        # 创建临时挂载点
+        
+        # Prepare for mounting
+        echo "Preparing to mount image..."
+        sudo modprobe nbd max_part=16
         mkdir -p mnt
-        # 使用 qemu-nbd 挂载镜像
-        sudo modprobe nbd
+        
+        # Mount the image using qemu-nbd
+        echo "Mounting image..."
         sudo qemu-nbd -c /dev/nbd0 rpi-4-sysupgrade.img
-        sleep 5  # 等待设备准备好
-        # 找到根文件系统分区（通常是第二个分区）
+        sleep 5  # Wait for device to be ready
+        
+        # Mount the root partition (typically partition 2)
         if ! sudo mount /dev/nbd0p2 mnt; then
-          echo "Error: Failed to mount /dev/nbd0p2"
+          echo "::error::Failed to mount root partition"
           sudo qemu-nbd -d /dev/nbd0
           exit 1
         fi
-        # 将根文件系统打包为 tar.gz
+        
+        # Package the root filesystem
+        echo "Creating rootfs archive..."
         sudo tar -czf openwrt-rootfs.tar.gz -C mnt .
-        # 清理
+        
+        # Clean up
+        echo "Cleaning up..."
         sudo umount mnt
         sudo qemu-nbd -d /dev/nbd0
-        rm -rf mnt rpi-4-sysupgrade.img
-        # 将生成的文件移动到预期位置
+        rm -rf mnt rpi-4-sysupgrade.img*
+        
+        # Move the archive to the expected location
         mv openwrt-rootfs.tar.gz /workdir/openwrt-rootfs.tar.gz
         echo "OPENWRT_ARMVIRT=/workdir/openwrt-rootfs.tar.gz" >> $GITHUB_ENV
+        echo "::notice::Root filesystem successfully packaged"
 
-    - name: 将 Armvirt 打包为 OpenWrt
+    - name: Package OpenWrt firmware
       if: (!cancelled())
       uses: ophub/flippy-openwrt-actions@main
       env:
         OPENWRT_ARMVIRT: ${{ env.OPENWRT_ARMVIRT }}
         PACKAGE_SOC: qemu
-        WHOAMI: Demons
+        WHOAMI: OpenWrt-Builder
         OPENWRT_VER: 24.10
         GZIP_IMGS: .gz
-        GH_TOKEN: ${{ secrets.TOKEN3 }}
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: 上传固件到 Actions
-      uses: kittaakos/upload-artifact-as-is@master
+    - name: Upload firmware to Actions artifacts
+      uses: actions/upload-artifact@v3
       if: env.PACKAGED_STATUS == 'success' && env.UPLOAD_FIRMWARE == 'true' && !cancelled()
       with:
+        name: openwrt-firmware
         path: ${{ env.PACKAGED_OUTPUTPATH }}/
+        retention-days: 3
 
-    - name: 上传 OpenWrt 固件到 Release
+    - name: Upload to GitHub Releases
       id: release
-      uses: ncipollo/release-action@v1
+      uses: softprops/action-gh-release@v1
       if: env.PACKAGED_STATUS == 'success' && env.UPLOAD_RELEASE == 'true' && !cancelled()
       with:
-        name: R${{ env.DATE }} for ${{ env.FILE_NAME }}
-        allowUpdates: true
-        removeArtifacts: true
-        tag: ${{ env.FILE_NAME }}
-        commit: main
-        token: ${{ secrets.TOKEN3}}
-        artifacts: ${{ env.PACKAGED_OUTPUTPATH }}/*
+        name: OpenWrt RPi4 Build ${{ env.BUILD_DATE_SHORT }}
+        tag: ${{ env.FIRMWARE_NAME }}-${{ env.BUILD_DATE_SHORT }}
         body: |
-          - 默认IP：192.168.11.2 默认密码：password (WiFi密码同）
-          - 当前使用版本:【编译前的最后一次➦[主源码](https://github.com/coolsnowwolf/lede)更新记录】
+          ### OpenWrt for Raspberry Pi 4
+          - **Default IP:** ${{ env.DEFAULT_IP }}
+          - **Default Password:** ${{ env.DEFAULT_PASSWORD }}
+          - **Build Date:** ${{ env.BUILD_DATE }}
+          
+          #### Source Information:
           ${{ env.useVersionInfo }}
+          
+          #### Usage Notes:
+          1. Flash the image to an SD card
+          2. Insert into Raspberry Pi 4 and power on
+          3. Connect to ${{ env.DEFAULT_IP }} in your browser
+        files: ${{ env.PACKAGED_OUTPUTPATH }}/*
+        prerelease: false
+        token: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: 删除工作流运行记录
+    - name: Clean up old workflow runs
       uses: Mattraks/delete-workflow-runs@v2
       with:
         retain_days: 1
-        keep_minimum_runs: 10
+        keep_minimum_runs: 5
 
-    - name: 删除旧的 Releases
+    - name: Clean up old releases
       uses: dev-drprasad/delete-older-releases@v0.2.0
       if: env.UPLOAD_RELEASE == 'true' && !cancelled()
       with:
-        repo:
-        keep_latest: 30
-        delete_tag_pattern:
+        keep_latest: ${{ env.RECENT_LASTEST }}
+        delete_tag_pattern: "${{ env.FIRMWARE_NAME }}-*"
         delete_tags: true
       env:
-        GITHUB_TOKEN: ${{ secrets.TOKEN3 }}
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
