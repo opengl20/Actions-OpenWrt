@@ -67,10 +67,15 @@ jobs:
       run: |
         # Download the .img.gz file
         wget -O openwrt.img.gz https://dl.openwrt.ai/releases/24.10/targets/bcm27xx/bcm2711/kwrt-03.08.2025-bcm27xx-bcm2711-rpi-4-squashfs-sysupgrade.img.gz
-        # Decompress the .img.gz file to .img
-        gunzip -f openwrt.img.gz
-        # Set the path to the decompressed .img file as an environment variable
-        echo "OPENWRT_ARMVIRT=$(pwd)/openwrt.img" >> $GITHUB_ENV
+        # Decompress the .img.gz file, ignoring trailing garbage warnings
+        gzip -d -f openwrt.img.gz || true
+        # Verify the file exists and set the environment variable
+        if [ -f "openwrt.img" ]; then
+          echo "OPENWRT_ARMVIRT=$(pwd)/openwrt.img" >> $GITHUB_ENV
+        else
+          echo "Error: Decompression failed, openwrt.img not found."
+          exit 1
+        fi
 
     - name: Package Armvirt as OpenWrt
       if: (!cancelled())
