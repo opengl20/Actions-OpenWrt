@@ -1,11 +1,10 @@
-
 #========================================================================================================================
 # https://github.com/ophub/amlogic-s9xxx-openwrt
 # Description: Use Releases file to packaging
 # Cron: min (0 - 59) / hour (0 - 23) / day of month (1 - 31) / month (1 - 12) / day of week (0 - 6)(Sunday - Saturday)
 #========================================================================================================================
 
-name: 2
+name: New
 
 on:
   repository_dispatch:
@@ -25,8 +24,8 @@ env:
   UPLOAD_RELEASE: true
   RECENT_LASTEST: 30
   TZ: Asia/Shanghai
-  FILE_NAME: 2
-  PRODUCT_NAME: 2
+  FILE_NAME: New
+  PRODUCT_NAME: New
 
 jobs:
   build:
@@ -63,26 +62,26 @@ jobs:
         echo "DATE=$(date "+%Y-%m-%d %H:%M:%S")" >> $GITHUB_ENV
         echo "DATE1=$(date "+%Y-%m-%d")" >> $GITHUB_ENV
 
+    - name: Prepare OpenWrt Image
+      if: (!cancelled())
+      run: |
+        # Download the .img.gz file
+        wget -O openwrt.img.gz https://dl.openwrt.ai/releases/24.10/targets/bcm27xx/bcm2711/kwrt-03.08.2025-bcm27xx-bcm2711-rpi-4-squashfs-sysupgrade.img.gz
+        # Decompress the .img.gz file to .img
+        gunzip -f openwrt.img.gz
+        # Set the path to the decompressed .img file as an environment variable
+        echo "OPENWRT_ARMVIRT=$(pwd)/openwrt.img" >> $GITHUB_ENV
+
     - name: Package Armvirt as OpenWrt
       if: (!cancelled())
       uses: ophub/flippy-openwrt-actions@main
       env:
-        OPENWRT_ARMVIRT: https://dl.openwrt.ai/releases/24.10/targets/bcm27xx/bcm2711/kwrt-03.08.2025-bcm27xx-bcm2711-rpi-4-squashfs-sysupgrade.img.gz
+        OPENWRT_ARMVIRT: ${{ env.OPENWRT_ARMVIRT }}
         PACKAGE_SOC: qemu
         WHOAMI: Demons
         OPENWRT_VER: 24.10
         GZIP_IMGS: .gz
         GH_TOKEN: ${{ secrets.TOKEN3 }}
-      run: |
-        # Download the new .img.gz file
-        wget -O openwrt.img.gz "$OPENWRT_ARMVIRT"
-        # Decompress the .img.gz file to .img
-        gunzip -f openwrt.img.gz
-        # Update OPENWRT_ARMVIRT to point to the decompressed .img file
-        export OPENWRT_ARMVIRT="$(pwd)/openwrt.img"
-        echo "OPENWRT_ARMVIRT=$OPENWRT_ARMVIRT" >> $GITHUB_ENV
-        # Proceed with the default packaging process
-        # The action will now use the decompressed .img file        
 
     - name: Upload artifact to Actions
       uses: kittaakos/upload-artifact-as-is@master
