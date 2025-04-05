@@ -68,8 +68,18 @@ jobs:
       run: |
         # 下载 .img.gz 文件
         wget -O rpi-4-sysupgrade.img.gz "$IMAGE_URL"
-        # 解压 .img.gz 到 .img
-        gunzip rpi-4-sysupgrade.img.gz
+        # 验证文件是否存在
+        if [ ! -f rpi-4-sysupgrade.img.gz ]; then
+          echo "Error: Failed to download rpi-4-sysupgrade.img.gz"
+          exit 1
+        fi
+        # 解压 .img.gz 到 .img，忽略 trailing garbage 警告
+        gzip -d rpi-4-sysupgrade.img.gz || true
+        # 检查解压结果
+        if [ ! -f rpi-4-sysupgrade.img ]; then
+          echo "Error: Decompression failed or rpi-4-sysupgrade.img not found"
+          exit 1
+        fi
         # 创建临时挂载点
         mkdir -p mnt
         # 使用 qemu-nbd 挂载镜像
@@ -77,7 +87,11 @@ jobs:
         sudo qemu-nbd -c /dev/nbd0 rpi-4-sysupgrade.img
         sleep 5  # 等待设备准备好
         # 找到根文件系统分区（通常是第二个分区）
-        sudo mount /dev/nbd0p2 mnt
+        if ! sudo mount /dev/nbd0p2 mnt; then
+          echo "Error: Failed to mount /dev/nbd0p2"
+          sudo qemu-nbd -d /dev/nbd0
+          exit 1
+        fi
         # 将根文件系统打包为 tar.gz
         sudo tar -czf openwrt-rootfs.tar.gz -C mnt .
         # 清理
