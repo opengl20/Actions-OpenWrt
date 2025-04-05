@@ -1,7 +1,7 @@
 #========================================================================================================================
 # https://github.com/ophub/amlogic-s9xxx-openwrt
-# Description: Use Releases file to packaging
-# Cron: min (0 - 59) / hour (0 - 23) / day of month (1 - 31) / month (1 - 12) / day of week (0 - 6)(Sunday - Saturday)
+# Description: 使用 Releases 文件进行打包
+# Cron: 分钟 (0 - 59) / 小时 (0 - 23) / 每月日期 (1 - 31) / 月份 (1 - 12) / 星期几 (0 - 6)(星期日 - 星期六)
 #========================================================================================================================
 
 name: old
@@ -26,6 +26,7 @@ env:
   TZ: Asia/Shanghai
   FILE_NAME: old
   PRODUCT_NAME: old
+  IMAGE_URL: https://dl.openwrt.ai/releases/24.10/targets/bcm27xx/bcm2711/kwrt-03.08.2025-bcm27xx-bcm2711-rpi-4-squashfs-sysupgrade.img.gz
 
 jobs:
   build:
@@ -33,24 +34,24 @@ jobs:
     if: github.event.repository.owner.id == github.event.sender.id || ! github.event.sender.id
 
     steps:
-    - name: Checkout
+    - name: 检出代码
       uses: actions/checkout@v2
 
-    - name: Initialization environment
+    - name: 初始化环境
       env:
         DEBIAN_FRONTEND: noninteractive
       run: |
         docker rmi `docker images -q`
         sudo rm -rf /etc/apt/sources.list.d/* /usr/share/dotnet /usr/local/lib/android /opt/ghc
         sudo -E apt-get -qq update
-        sudo -E apt-get -qq install $(curl -fsSL https://is.gd/depends_ubuntu_2204)
+        sudo -E apt-get -qq install $(curl -fsSL https://is.gd/depends_ubuntu_2204) qemu-utils
         sudo -E apt-get -qq autoremove --purge
         sudo -E apt-get -qq clean
         sudo timedatectl set-timezone "$TZ"
         sudo mkdir -p -m 777 /workdir
         sudo chown $USER:$GROUPS /workdir
 
-    - name: Clone source code
+    - name: 克隆源代码
       working-directory: /workdir
       run: |
         df -hT $PWD
@@ -62,22 +63,32 @@ jobs:
         echo "DATE=$(date "+%Y-%m-%d %H:%M:%S")" >> $GITHUB_ENV
         echo "DATE1=$(date "+%Y-%m-%d")" >> $GITHUB_ENV
 
-    - name: Prepare OpenWrt Image
-      if: (!cancelled())
+    - name: 下载并转换镜像文件
+      working-directory: /workdir
       run: |
-        # Download the .img.gz file
-        wget -O openwrt.img.gz https://dl.openwrt.ai/releases/24.10/targets/bcm27xx/bcm2711/kwrt-03.08.2025-bcm27xx-bcm2711-rpi-4-squashfs-sysupgrade.img.gz
-        # Decompress the .img.gz file, ignoring trailing garbage warnings
-        gzip -d -f openwrt.img.gz || true
-        # Verify the file exists and set the environment variable
-        if [ -f "openwrt.img" ]; then
-          echo "OPENWRT_ARMVIRT=$(pwd)/openwrt.img" >> $GITHUB_ENV
-        else
-          echo "Error: Decompression failed, openwrt.img not found."
-          exit 1
-        fi
+        # 下载 .img.gz 文件
+        wget -O rpi-4-sysupgrade.img.gz "$IMAGE_URL"
+        # 解压 .img.gz 到 .img
+        gunzip rpi-4-sysupgrade.img.gz
+        # 创建临时挂载点
+        mkdir -p mnt
+        # 使用 qemu-nbd 挂载镜像
+        sudo modprobe nbd
+        sudo qemu-nbd -c /dev/nbd0 rpi-4-sysupgrade.img
+        sleep 5  # 等待设备准备好
+        # 找到根文件系统分区（通常是第二个分区）
+        sudo mount /dev/nbd0p2 mnt
+        # 将根文件系统打包为 tar.gz
+        sudo tar -czf openwrt-rootfs.tar.gz -C mnt .
+        # 清理
+        sudo umount mnt
+        sudo qemu-nbd -d /dev/nbd0
+        rm -rf mnt rpi-4-sysupgrade.img
+        # 将生成的文件移动到预期位置
+        mv openwrt-rootfs.tar.gz /workdir/openwrt-rootfs.tar.gz
+        echo "OPENWRT_ARMVIRT=/workdir/openwrt-rootfs.tar.gz" >> $GITHUB_ENV
 
-    - name: Package Armvirt as OpenWrt
+    - name: 将 Armvirt 打包为 OpenWrt
       if: (!cancelled())
       uses: ophub/flippy-openwrt-actions@main
       env:
@@ -88,13 +99,13 @@ jobs:
         GZIP_IMGS: .gz
         GH_TOKEN: ${{ secrets.TOKEN3 }}
 
-    - name: Upload artifact to Actions
+    - name: 上传固件到 Actions
       uses: kittaakos/upload-artifact-as-is@master
       if: env.PACKAGED_STATUS == 'success' && env.UPLOAD_FIRMWARE == 'true' && !cancelled()
       with:
         path: ${{ env.PACKAGED_OUTPUTPATH }}/
 
-    - name: Upload OpenWrt Firmware to Release
+    - name: 上传 OpenWrt 固件到 Release
       id: release
       uses: ncipollo/release-action@v1
       if: env.PACKAGED_STATUS == 'success' && env.UPLOAD_RELEASE == 'true' && !cancelled()
@@ -111,13 +122,13 @@ jobs:
           - 当前使用版本:【编译前的最后一次➦[主源码](https://github.com/coolsnowwolf/lede)更新记录】
           ${{ env.useVersionInfo }}
 
-    - name: Delete workflow runs
+    - name: 删除工作流运行记录
       uses: Mattraks/delete-workflow-runs@v2
       with:
         retain_days: 1
         keep_minimum_runs: 10
 
-    - name: Remove old Releases
+    - name: 删除旧的 Releases
       uses: dev-drprasad/delete-older-releases@v0.2.0
       if: env.UPLOAD_RELEASE == 'true' && !cancelled()
       with:
