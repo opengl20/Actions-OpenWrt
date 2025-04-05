@@ -8,7 +8,7 @@
 # Cron: 0 04 * * 0 (Runs every Sunday at 04:00 UTC)
 #========================================================================================================================
 
-name: OpenWrt Build for Raspberry Pi 4
+name: old
 
 on:
   repository_dispatch:
