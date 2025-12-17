@@ -63,6 +63,11 @@ jobs:
         echo "DATE=$(date "+%Y-%m-%d %H:%M:%S")" >> $GITHUB_ENV
         echo "DATE1=$(date "+%Y-%m-%d")" >> $GITHUB_ENV
 
+    - name: Install qemu-utils
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y qemu-utils
+
     - name: Package Armvirt as OpenWrt
       if: (!cancelled())
       uses: ophub/flippy-openwrt-actions@main
