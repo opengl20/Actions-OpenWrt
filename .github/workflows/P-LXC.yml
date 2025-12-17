@@ -50,6 +50,19 @@ jobs:
         sudo timedatectl set-timezone "$TZ"
         sudo mkdir -p -m 777 /workdir
         sudo chown $USER:$GROUPS /workdir
+        
+    - name: Install Build Dependencies (including qemu-utils)
+      run: |
+        sudo apt-get update
+        # 安装打包和镜像制作所需的核心工具
+        sudo apt-get install -y \
+        qemu-utils \
+        cloud-utils \
+        dosfstools \
+        btrfs-progs \
+        fdisk \
+        parted \
+        gawk
 
     - name: Clone source code
       working-directory: /workdir
